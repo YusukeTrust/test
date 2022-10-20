@@ -1,0 +1,145 @@
+# ------------------------------------------------------------#
+# CodeBuild for update squid whitelist
+# ------------------------------------------------------------#
+  iamRoleForWhitelistUpdate:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: updtWhtList-codebuild-role
+      Tags: 
+        - Key: Owner
+          Value: !Ref CommonTagValueOfOwner
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: updtWhtList-codebuild-policy
+          PolicyDocument: !Sub |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "codecommit:GitPull",
+                    "codebuild:CreateReportGroup",
+                    "codebuild:CreateReport",
+                    "codebuild:UpdateReport",
+                    "codebuild:BatchPutTestCases",
+                    "codebuild:BatchPutCodeCoverages",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeDhcpOptions",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeVpcs",
+                    "ssm:DescribeParameters"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:CreateNetworkInterfacePermission"
+                  ],
+                  "Resource": "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*",
+                  "Condition": {
+                    "StringEquals": {
+                      "ec2:AuthorizedService": "codebuild.amazonaws.com"
+                    },
+                    "ArnEquals": {
+                      "ec2:Subnet": [
+                        "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${CommonSubnetId}"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                      "ssm:GetParametersByPath",
+                      "ssm:GetParameters",
+                      "ssm:GetParameter"
+                  ],
+                  "Resource": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ssh_private_key_for_ansible"            },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                      "kms:Decrypt"
+                  ],
+                  "Resource": [
+                      "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/kms/ssm"
+                  ]
+                }
+              ]
+            }
+
+  PipelineSrvRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ansible-codepipeline-Role
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ansible-cpdepipeline-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:StopBuild
+                  - codebuild:BatchGet*
+                  - codebuild:Get*
+                  - codebuild:List*
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                  - codecommit:ListBranches
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+                  - codecommit:CancelUploadArchive
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListAllMyBuckets
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - iam:PassRole
+                  - ssm:PutParameter
+                  - sns:Publish
+Outputs:
+  bstnUserOpCodeBuildSrvRole:
+    Value: !GetAtt iamRoleForUsercreate.Arn
+    Export:
+      Name: bstnUserOp-CodeBuildSrvRole-arn
+  updtWhtListCodeBuildSrvRole:
+    Value: !GetAtt iamRoleForWhitelistUpdate.Arn
+    Export:
+      Name: updtWhtList-CodeBuildSrvRole-arn
+  PipelineSrvRoleArn:
+    Value: !GetAtt PipelineSrvRole.Arn
+    Export:
+      Name: ansiblePipelineSrvRole-arn
