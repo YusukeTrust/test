@@ -1,0 +1,63 @@
+#taskdef
+{
+  "taskDefinition": {
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "1024",
+    "memory": "2048",
+    "containerDefinitions": [
+      {
+        "image": "921939014190.dkr.ecr.ap-northeast-1.amazonaws.com/opsauto-web:{{ env `CI_COMMIT_SHORT_SHA` }}",
+        "name": "opsauto-web",
+        "portMappings": [
+          {
+            "containerPort": 3000,
+            "protocol": "tcp"
+          }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/opsauto-web",
+            "awslogs-region": "ap-northeast-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        }
+      }
+    ]
+  }
+}
+
+#servicedef
+{
+  "launchType": "FARGATE",
+  "loadBalancers": [
+    {
+      "containerName": "opsauto-web",
+      "containerPort": 3000,
+      "targetGroupArn": "{{ tfstate `module.lb.aws_lb_target_group.opsauto_web.arn` }}"
+    }
+  ],
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "{{ tfstate `module.network.aws_subnet.private_a.id` }}",
+        "{{ tfstate `module.network.aws_subnet.private_c.id` }}"
+      ],
+      "securityGroups": [
+        "{{ tfstate `module.sg.aws_security_group.opsauto_web_ecs.id` }}"
+      ]
+    }
+  }
+}
+
+#config
+region: ap-northeast-1
+cluster: opsauto-web
+service: servicedef.json
+task_definition: taskdef.json
+timeout: 5m # default 10m
+plugins:
+  - name: tfstate
+    config:
+      url: s3://opsauto-dev-s3backet-tfforbackend/opsauto.tfstate
